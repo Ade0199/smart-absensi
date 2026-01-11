@@ -2,163 +2,150 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Smart Absensi GPS</title>
+<title>AdeSosial X ⚡</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+
+<!-- FIREBASE CDN -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 
 <style>
-:root{
-  --bg:#0a0f1e;
-  --glass:rgba(255,255,255,.08);
-  --accent:#00fff7;
-}
-body{
-  margin:0;
-  font-family:Segoe UI, sans-serif;
-  background:radial-gradient(circle at top,#111a3a,#000);
-  color:#fff;
-  overflow:hidden;
-}
-canvas{
-  position:fixed;
-  inset:0;
-  z-index:0;
-}
-.container{
-  position:relative;
-  z-index:1;
-  max-width:420px;
-  margin:40px auto;
-  padding:20px;
-}
-.card{
-  background:var(--glass);
-  backdrop-filter:blur(14px);
-  border-radius:18px;
-  padding:20px;
-  box-shadow:0 0 40px rgba(0,255,247,.25);
-  margin-bottom:20px;
-}
-h1{
-  text-align:center;
-  color:var(--accent);
-}
-button{
-  width:100%;
-  padding:14px;
-  border-radius:12px;
-  border:none;
-  background:linear-gradient(135deg,#00fff7,#0077ff);
-  font-weight:bold;
-  cursor:pointer;
-}
-.log{
-  font-size:14px;
-  line-height:1.6;
-}
+body{font-family:sans-serif;background:#111;color:#fff;margin:0}
+header{padding:15px;background:#000;text-align:center;font-size:20px}
+input,textarea,button{width:100%;margin:5px 0;padding:10px;border-radius:8px;border:none}
+button{background:#0af;color:#000;font-weight:bold}
+.post{background:#1c1c1c;margin:10px;padding:10px;border-radius:12px}
+img{width:100%;border-radius:10px}
+small{color:#aaa}
+.like{cursor:pointer;color:#0af}
 </style>
 </head>
 
 <body>
-<canvas id="bg"></canvas>
 
-<div class="container">
-  <div class="card">
-    <h1>SMART ABSENSI</h1>
-    <p id="time">⏳ Memuat waktu...</p>
-    <p id="location">📍 Mengambil lokasi...</p>
-    <button onclick="absen()">ABSEN SEKARANG</button>
-  </div>
+<header>AdeSosial X ⚡</header>
 
-  <div class="card">
-    <h3>Riwayat Absensi</h3>
-    <div id="log" class="log"></div>
-  </div>
+<div id="auth">
+  <input id="email" placeholder="Email">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="login()">Login / Daftar</button>
+</div>
+
+<div id="app" style="display:none;padding:10px">
+  <input type="file" id="photo">
+  <textarea id="caption" placeholder="Apa yang kamu pikirkan?"></textarea>
+  <button onclick="post()">Posting</button>
+
+  <h3>🔥 Feed</h3>
+  <div id="feed"></div>
+
+  <h3>💬 Chat Global</h3>
+  <div id="chat"></div>
+  <input id="msg" placeholder="Tulis pesan...">
+  <button onclick="sendChat()">Kirim</button>
 </div>
 
 <script>
-// ===== WAKTU REALTIME =====
-setInterval(()=>{
-  document.getElementById("time").innerText =
-    "🕒 " + new Date().toLocaleString("id-ID");
-},1000);
-
-// ===== GPS + ALAMAT =====
-let lokasi="Lokasi tidak diketahui";
-let koordinat="";
-
-navigator.geolocation.getCurrentPosition(async pos=>{
-  const lat=pos.coords.latitude;
-  const lon=pos.coords.longitude;
-  koordinat=`${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-
-  try{
-    const res=await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
-    );
-    const data=await res.json();
-    lokasi=data.display_name;
-  }catch{
-    lokasi="Gagal mengambil alamat";
-  }
-
-  document.getElementById("location").innerText="📍 "+lokasi;
-},()=>{
-  document.getElementById("location").innerText="❌ Izin lokasi ditolak";
+/* ================= FIREBASE INIT ================= */
+firebase.initializeApp({
+  apiKey: "AIzaSyCRldMRUuy7NqIMbJUCKSbPUlFyXgREn4w",
+  authDomain: "adesosial-x.firebaseapp.com",
+  projectId: "adesosial-x",
+  storageBucket: "adesosial-x.firebasestorage.app",
+  messagingSenderId: "549966673845",
+  appId: "1:549966673845:web:d85794b0d840d2209e0bfc"
 });
 
-// ===== ABSENSI =====
-function absen(){
-  const data=JSON.parse(localStorage.getItem("absensi")||"[]");
-  data.unshift({
-    waktu:new Date().toLocaleString("id-ID"),
-    alamat:lokasi,
-    koordinat:koordinat
+const auth = firebase.auth();
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+/* ================= AUTH ================= */
+function login(){
+  auth.signInWithEmailAndPassword(email.value,password.value)
+  .catch(()=>auth.createUserWithEmailAndPassword(email.value,password.value));
+}
+
+auth.onAuthStateChanged(u=>{
+  if(u){
+    auth.style.display="none";
+    app.style.display="block";
+  }
+});
+
+/* ================= POST ================= */
+async function post(){
+  const file=photo.files[0];
+  if(!file) return alert("Pilih foto");
+  const ref=storage.ref("posts/"+Date.now());
+  await ref.put(file);
+  const url=await ref.getDownloadURL();
+
+  db.collection("posts").add({
+    user:auth.currentUser.email,
+    img:url,
+    caption:caption.value,
+    likes:0,
+    time:firebase.firestore.FieldValue.serverTimestamp()
   });
-  localStorage.setItem("absensi",JSON.stringify(data));
-  tampilkan();
-  alert("✅ Absensi berhasil disimpan");
+
+  caption.value="";
 }
 
-// ===== TAMPILKAN DATA =====
-function tampilkan(){
-  const data=JSON.parse(localStorage.getItem("absensi")||"[]");
-  document.getElementById("log").innerHTML=data.map(d=>`
-    • ${d.waktu}<br>
-    <small>${d.alamat}</small><br>
-    <small>(${d.koordinat})</small>
-    <hr>
-  `).join("");
-}
-tampilkan();
-
-// ===== ANIMASI PARTIKEL =====
-const c=document.getElementById("bg");
-const ctx=c.getContext("2d");
-c.width=innerWidth;
-c.height=innerHeight;
-
-let p=Array.from({length:80},()=>({
-  x:Math.random()*c.width,
-  y:Math.random()*c.height,
-  vx:(Math.random()-.5)*.6,
-  vy:(Math.random()-.5)*.6,
-  r:Math.random()*2+1
-}));
-
-function anim(){
-  ctx.clearRect(0,0,c.width,c.height);
-  p.forEach(o=>{
-    o.x+=o.vx; o.y+=o.vy;
-    if(o.x<0||o.x>c.width) o.vx*=-1;
-    if(o.y<0||o.y>c.height) o.vy*=-1;
-    ctx.beginPath();
-    ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
-    ctx.fillStyle="#00fff7";
-    ctx.fill();
+/* ================= FEED + ALGORITMA ================= */
+db.collection("posts")
+.orderBy("time","desc")
+.onSnapshot(snap=>{
+  feed.innerHTML="";
+  snap.forEach(doc=>{
+    const p=doc.data();
+    feed.innerHTML+=`
+    <div class="post">
+      <img src="${p.img}">
+      <p><b>${p.user}</b></p>
+      <p>${p.caption}</p>
+      <p class="like" onclick="like('${doc.id}',${p.likes})">
+        ❤️ ${p.likes}
+      </p>
+      <small>${p.time?.toDate()}</small>
+    </div>`;
   });
-  requestAnimationFrame(anim);
+});
+
+/* ================= LIKE ================= */
+function like(id,count){
+  db.collection("posts").doc(id).update({
+    likes:count+1
+  });
 }
-anim();
+
+/* ================= CHAT REALTIME ================= */
+function sendChat(){
+  db.collection("chat").add({
+    user:auth.currentUser.email,
+    msg:msg.value,
+    time:firebase.firestore.FieldValue.serverTimestamp()
+  });
+  msg.value="";
+}
+
+db.collection("chat")
+.orderBy("time")
+.onSnapshot(snap=>{
+  chat.innerHTML="";
+  snap.forEach(d=>{
+    const c=d.data();
+    chat.innerHTML+=`<p><b>${c.user}:</b> ${c.msg}</p>`;
+  });
+});
+
+/* ================= PWA ================= */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("service-worker.js");
+}
 </script>
 </body>
 </html>

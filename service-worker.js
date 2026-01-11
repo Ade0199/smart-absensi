@@ -1,8 +1,6 @@
 self.addEventListener("install",e=>{
   e.waitUntil(
-    caches.open("adesosial").then(c=>{
-      return c.addAll(["./"]);
-    })
+    caches.open("adesosial").then(c=>c.addAll(["./"]))
   );
 });
 
@@ -11,4 +9,3 @@ self.addEventListener("fetch",e=>{
     caches.match(e.request).then(r=>r||fetch(e.request))
   );
 });
-

@@ -2,50 +2,121 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>AdeSosial X ⚡</title>
+<title>AdeSosial X</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="manifest.json">
 
-<!-- FIREBASE CDN -->
+<!-- Firebase CDN (COMPAT – AMAN) -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 
 <style>
-body{font-family:sans-serif;background:#111;color:#fff;margin:0}
-header{padding:15px;background:#000;text-align:center;font-size:20px}
-input,textarea,button{width:100%;margin:5px 0;padding:10px;border-radius:8px;border:none}
-button{background:#0af;color:#000;font-weight:bold}
-.post{background:#1c1c1c;margin:10px;padding:10px;border-radius:12px}
-img{width:100%;border-radius:10px}
-small{color:#aaa}
-.like{cursor:pointer;color:#0af}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  color:#fff;
+}
+
+/* ===== LOGIN ===== */
+#loginPage{
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+.login-box{
+  background:#111;
+  padding:30px;
+  width:100%;
+  max-width:350px;
+  border-radius:16px;
+  box-shadow:0 0 30px rgba(0,0,0,.6);
+}
+
+.login-box h1{
+  text-align:center;
+  margin-bottom:20px;
+}
+
+input,textarea,button{
+  width:100%;
+  padding:12px;
+  margin:6px 0;
+  border-radius:10px;
+  border:none;
+  outline:none;
+}
+
+button{
+  font-weight:bold;
+  cursor:pointer;
+}
+
+.btn-login{background:#00c6ff;color:#000}
+.btn-register{background:#00ff99;color:#000}
+
+/* ===== APP ===== */
+#app{
+  display:none;
+}
+
+header{
+  padding:15px;
+  text-align:center;
+  font-size:20px;
+  background:#000;
+}
+
+.container{padding:10px}
+
+.post{
+  background:#1b1b1b;
+  padding:10px;
+  border-radius:14px;
+  margin-bottom:10px;
+}
+
+.post img{
+  width:100%;
+  border-radius:10px;
+}
+
+.like{
+  color:#00c6ff;
+  cursor:pointer;
+}
 </style>
 </head>
 
 <body>
 
-<header>AdeSosial X ⚡</header>
-
-<div id="auth">
-  <input id="email" placeholder="Email">
-  <input id="password" type="password" placeholder="Password">
-  <button onclick="login()">Login / Daftar</button>
+<!-- ================= LOGIN PAGE ================= -->
+<div id="loginPage">
+  <div class="login-box">
+    <h1>AdeSosial X</h1>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button class="btn-login" onclick="login()">Login</button>
+    <button class="btn-register" onclick="register()">Daftar</button>
+  </div>
 </div>
 
-<div id="app" style="display:none;padding:10px">
-  <input type="file" id="photo">
-  <textarea id="caption" placeholder="Apa yang kamu pikirkan?"></textarea>
-  <button onclick="post()">Posting</button>
+<!-- ================= APP ================= -->
+<div id="app">
+  <header>AdeSosial X 🔥</header>
+  <div class="container">
+    <input type="file" id="photo">
+    <textarea id="caption" placeholder="Tulis sesuatu..."></textarea>
+    <button onclick="post()">Posting</button>
 
-  <h3>🔥 Feed</h3>
-  <div id="feed"></div>
-
-  <h3>💬 Chat Global</h3>
-  <div id="chat"></div>
-  <input id="msg" placeholder="Tulis pesan...">
-  <button onclick="sendChat()">Kirim</button>
+    <h3>Feed</h3>
+    <div id="feed"></div>
+  </div>
 </div>
 
 <script>
@@ -59,93 +130,82 @@ firebase.initializeApp({
   appId: "1:549966673845:web:d85794b0d840d2209e0bfc"
 });
 
-const auth = firebase.auth();
+const firebaseAuth = firebase.auth();
 const db = firebase.firestore();
 const storage = firebase.storage();
 
 /* ================= AUTH ================= */
 function login(){
-  auth.signInWithEmailAndPassword(email.value,password.value)
-  .catch(()=>auth.createUserWithEmailAndPassword(email.value,password.value));
+  firebaseAuth.signInWithEmailAndPassword(email.value,password.value)
+  .catch(err=>alert(err.message));
 }
 
-auth.onAuthStateChanged(u=>{
-  if(u){
-    auth.style.display="none";
+function register(){
+  firebaseAuth.createUserWithEmailAndPassword(email.value,password.value)
+  .catch(err=>alert(err.message));
+}
+
+firebaseAuth.onAuthStateChanged(user=>{
+  if(user){
+    loginPage.style.display="none";
     app.style.display="block";
   }
 });
 
 /* ================= POST ================= */
 async function post(){
-  const file=photo.files[0];
-  if(!file) return alert("Pilih foto");
-  const ref=storage.ref("posts/"+Date.now());
-  await ref.put(file);
-  const url=await ref.getDownloadURL();
+  if(!firebaseAuth.currentUser) return alert("Login dulu");
 
-  db.collection("posts").add({
-    user:auth.currentUser.email,
-    img:url,
-    caption:caption.value,
-    likes:0,
-    time:firebase.firestore.FieldValue.serverTimestamp()
+  const file = photo.files[0];
+  if(!file) return alert("Pilih foto");
+
+  const ref = storage.ref("posts/"+Date.now());
+  await ref.put(file);
+  const url = await ref.getDownloadURL();
+
+  await db.collection("posts").add({
+    user: firebaseAuth.currentUser.email,
+    img: url,
+    caption: caption.value,
+    likes: 0,
+    time: firebase.firestore.FieldValue.serverTimestamp()
   });
 
   caption.value="";
 }
 
-/* ================= FEED + ALGORITMA ================= */
+/* ================= FEED REALTIME ================= */
 db.collection("posts")
 .orderBy("time","desc")
 .onSnapshot(snap=>{
   feed.innerHTML="";
   snap.forEach(doc=>{
-    const p=doc.data();
-    feed.innerHTML+=`
-    <div class="post">
-      <img src="${p.img}">
-      <p><b>${p.user}</b></p>
-      <p>${p.caption}</p>
-      <p class="like" onclick="like('${doc.id}',${p.likes})">
-        ❤️ ${p.likes}
-      </p>
-      <small>${p.time?.toDate()}</small>
-    </div>`;
+    const p = doc.data();
+    feed.innerHTML += `
+      <div class="post">
+        <img src="${p.img}">
+        <p><b>${p.user}</b></p>
+        <p>${p.caption}</p>
+        <p class="like" onclick="likePost('${doc.id}',${p.likes})">
+          ❤️ ${p.likes}
+        </p>
+      </div>
+    `;
   });
 });
 
 /* ================= LIKE ================= */
-function like(id,count){
+function likePost(id,likes){
   db.collection("posts").doc(id).update({
-    likes:count+1
+    likes: likes + 1
   });
 }
-
-/* ================= CHAT REALTIME ================= */
-function sendChat(){
-  db.collection("chat").add({
-    user:auth.currentUser.email,
-    msg:msg.value,
-    time:firebase.firestore.FieldValue.serverTimestamp()
-  });
-  msg.value="";
-}
-
-db.collection("chat")
-.orderBy("time")
-.onSnapshot(snap=>{
-  chat.innerHTML="";
-  snap.forEach(d=>{
-    const c=d.data();
-    chat.innerHTML+=`<p><b>${c.user}:</b> ${c.msg}</p>`;
-  });
-});
 
 /* ================= PWA ================= */
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("service-worker.js");
 }
 </script>
+
 </body>
 </html>
